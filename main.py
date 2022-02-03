@@ -1,9 +1,10 @@
+import math
 import cv2
 import mediapipe as mp
-import math, time
 import pyttsx3
 
 mp_drawing = mp.solutions.drawing_utils
+mp_drawing_styles = mp.solutions.drawing_styles
 mp_pose = mp.solutions.pose
 PRESENCE_THRESHOLD = 0.5
 VISIBILITY_THRESHOLD = 0.5
@@ -46,7 +47,7 @@ def draw1(img, angle, std):
     cv2.rectangle(img, (1100, 100), (1175, 650), color, 3)
     cv2.rectangle(img, (1100, y), (1175, 650), color, cv2.FILLED)
 
-    cv2.putText(img, f'{("perfect" if (angle >= std - 10 and angle <= std + 15) else "nope")}', (1000, 75),
+    cv2.putText(img, f'{("perfect" if (std - 10 <= angle <= std + 15) else "nope")}', (1000, 75),
                 cv2.FONT_HERSHEY_PLAIN, 2,
                 color, 2)
 
@@ -66,18 +67,19 @@ def draw2(img, angle, std, x, name):
     cv2.rectangle(img, (x, 100), (x + 75, 650), color, 3)
     cv2.rectangle(img, (x, y), (x + 75, 650), color, cv2.FILLED)
 
-    cv2.putText(img, f'{(f"{name} perfect" if (std - 10 <= angle <= std + 15) else f"{name} nope")} ', (x-100, 75),
+    cv2.putText(img, f'{(f"{name} perfect" if (std - 10 <= angle <= std + 15) else f"{name} nope")} ', (x - 100, 75),
                 cv2.FONT_HERSHEY_PLAIN, 2,
                 color, 2)
 
 
+# 计算角度
 def cal(p1, p2, p3):
     a = ((p2[0] - p3[0]) ** 2 + (p2[1] - p3[1]) ** 2) ** 0.5
     b = ((p1[0] - p3[0]) ** 2 + (p1[1] - p3[1]) ** 2) ** 0.5
     c = ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
     # print(a,b,c)
-    angle_B = math.degrees(math.acos((b * b - a * a - c * c) / (-2 * a * c)))
-    return angle_B
+    angle_b = math.degrees(math.acos((b * b - a * a - c * c) / (-2 * a * c)))
+    return angle_b
 
 
 cap = cv2.VideoCapture(0)
@@ -92,7 +94,6 @@ with mp_pose.Pose(
         if not success:
             print("Ignoring empty camera frame.")
             break
-            continue
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image.flags.writeable = False
         results = pose.process(image)
@@ -190,5 +191,3 @@ with mp_pose.Pose(
         if cv2.waitKey(5) & 0xFF == 27:
             break
 cap.release()
-
-
