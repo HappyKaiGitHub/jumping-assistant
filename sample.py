@@ -12,7 +12,7 @@ IMAGE_FILES = []
 BG_COLOR = (192, 192, 192)  # gray
 with mp_pose.Pose(
         static_image_mode=False,
-        model_complexity=2,
+        model_complexity=1,
         enable_segmentation=True,
         min_detection_confidence=0.5) as pose:
     for idx, file in enumerate(IMAGE_FILES):

@@ -2,16 +2,30 @@ import math
 import cv2
 import mediapipe as mp
 import pyttsx3
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_pose = mp.solutions.pose
 PRESENCE_THRESHOLD = 0.5
 VISIBILITY_THRESHOLD = 0.5
+
+# 标准动作角度
+QIANBAI_KNEE = 165  # 前摆，腕肩髋的三点夹角
+
 # For static images
 IMAGE_FILES = []
 say = pyttsx3.init()
-cont = 1
+count = 1
+"""
+todo 补充标记对应关键点表格
+
+"""
+
+
+cap = cv2.VideoCapture(0)
 
 
 def _normalized_to_pixel_coordinates(
@@ -33,6 +47,7 @@ def _normalized_to_pixel_coordinates(
     return x_px, y_px
 
 
+# draw1表示只包含单个变量的动作计算分数并打印
 def draw1(img, angle, std):
     # print(angle, per)
     per = angle / std
@@ -72,17 +87,52 @@ def draw2(img, angle, std, x, name):
                 color, 2)
 
 
-# 计算角度
-def cal(p1, p2, p3):
+# 计算三点夹角
+def cal_angle(p1, p2, p3):  # p1为A，p2为B，p3为C
+    # BC距离
     a = ((p2[0] - p3[0]) ** 2 + (p2[1] - p3[1]) ** 2) ** 0.5
+    # AC距离
     b = ((p1[0] - p3[0]) ** 2 + (p1[1] - p3[1]) ** 2) ** 0.5
+    # AB距离
     c = ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
-    # print(a,b,c)
+    # 算出AB，BC夹角，顶点B的角度
     angle_b = math.degrees(math.acos((b * b - a * a - c * c) / (-2 * a * c)))
     return angle_b
 
 
-cap = cv2.VideoCapture(0)
+# todo 计算跳远距离
+def cal_distance():
+    jumping_distance = 0
+    return jumping_distance
+
+
+# todo 输出动作分析报告
+def jumping_pose_report():
+    sns.set_theme(style="ticks", color_codes=True)
+
+    # 加载数据
+    df = sns.load_dataset('iris', data_home='seaborn-data', cache=True)
+
+    # 绘图显示
+    sns.catplot(x=df["species"], y=df["sepal_length"], data=df)
+    plt.show()
+
+
+# 在图像上显示中文字符
+def cv2_add_chinese_text(img, text, position, textColor=(0, 255, 0), textSize=30):
+    if (isinstance(img, np.ndarray)):  # 判断是否OpenCV图片类型
+        img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    # 创建一个可以在给定图像上绘图的对象
+    draw = ImageDraw.Draw(img)
+    # 字体的格式
+    fontstyle = ImageFont.truetype(
+        "simsun.ttc", textSize, encoding="utf-8")
+    # 绘制文本
+    draw.text(position, text, textColor, font=fontstyle)
+    # 转换回OpenCV格式
+    return cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
+
+
 with mp_pose.Pose(
         min_detection_confidence=0.5,
         min_tracking_confidence=0.5) as pose:
@@ -122,12 +172,13 @@ with mp_pose.Pose(
         for k in idx_to_coordinates.keys():
             if k in list(range(11, 17)) or k in list(range(23, 29)):
                 dic[k] = idx_to_coordinates[k]
-        try:  # 预摆阶段
-            angele['left_arm'] = cal(dic[13], dic[11], dic[23])
-            angele['left_elbow'] = cal(dic[15], dic[13], dic[11])
-            left_elbow = cal(dic[15], dic[13], dic[11])
+        try:
+            # 预摆阶段
+            angele['left_arm'] = cal_angle(dic[13], dic[11], dic[23])
+            angele['left_elbow'] = cal_angle(dic[15], dic[13], dic[11])
+            left_elbow = cal_angle(dic[15], dic[13], dic[11])
             left_arm = angele['left_arm']
-            left_arm = cal(dic[13], dic[11], dic[23])
+            left_arm = cal_angle(dic[13], dic[11], dic[23])
             # 手臂与手腕髋
             distance = (
                                ((dic[23][0] - dic[15][0]) ** 2 + (dic[23][1] - dic[15][1]) ** 2) ** 0.5) / (
@@ -135,55 +186,60 @@ with mp_pose.Pose(
             # 髋、踝与手臂
             distance2 = abs(dic[23][0] - dic[27][0]) / (
                     ((dic[15][0] - dic[11][0]) ** 2 + (dic[15][1] - dic[11][1]) ** 2) ** 0.5)
-            is_line = cal(dic[23], dic[25], dic[27])
-            print(distance, is_line)
-            if is_line > 165 and distance2 > 0.3:
-                if cont % 2 == 0:
+            pose_leg = cal_angle(dic[23], dic[25], dic[27])  # 髋、膝、踝的角度，腿的姿态
+            print(distance, pose_leg)
+
+            if pose_leg > 165 and distance2 > 0.3:
+                if count % 2 == 0:
                     words = '离 地'
-                    say.say(words)
-                    say.runAndWait()
-                angele['left_knee'] = cal(dic[23], dic[25], dic[27])
-                left_knee = cal(dic[23], dic[25], dic[27])
+                    # say.say(words)
+                    # say.runAndWait()
+                angele['left_knee'] = cal_angle(dic[23], dic[25], dic[27])
+                left_knee = cal_angle(dic[23], dic[25], dic[27])
                 cv2.putText(image, f'already jump', (100, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (19, 0, 200), 3)
+                # cv2_add_chinese_text(image, "起跳", (100, 60), (19, 0, 200), 1.2)
                 draw1(image, left_knee, 165)
                 cv2.imwrite(f'{i}.jpg', image)
-            elif is_line > 165 and distance > 0.3 and dic[23][0] > dic[15][0]:
+            elif pose_leg > 165 and distance > 0.3 and dic[23][0] > dic[15][0]:
                 words = '前摆'
-                if cont % 23 == 0:
-                    say.say(words)
-                    say.runAndWait()
-                print(words)
+                if count % 23 == 0:
+                    # say.say(words)
+                    # say.runAndWait()
+                    print(words)
                 cv2.putText(image, f'front sweep', (100, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (19, 0, 200), 3)
+                # cv2_add_chinese_text(image, "前摆姿势", (100, 60), (19, 0, 200), 1.2)
                 draw1(image, left_arm, 160)
                 print(words)
                 draw1(image, left_arm, 160)
                 cv2.imwrite(f'{i}.jpg', image)
-            elif is_line > 165 and distance > 0.3 and dic[23][0] + 60 < dic[15][0]:
+            elif pose_leg > 165 and distance > 0.3 and dic[23][0] + 60 < dic[15][0]:
                 words = '后摆'
-                if cont % 23 == 0:
-                    say.say(words)
-                    say.runAndWait()
-                print(words)
+                if count % 23 == 0:
+                    # say.say(words)
+                    # say.runAndWait()
+                    print(words)
                 cv2.putText(image, f'back sweep', (100, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (19, 0, 200), 3)
+                # cv2_add_chinese_text(image, "后摆姿势", (100, 60), (19, 0, 200), 1.2)
                 cv2.imwrite(f'{i}.jpg', image)
                 draw1(image, left_arm, 70)
-            elif cal(dic[11], dic[23], dic[25]) < 150:
+            elif cal_angle(dic[11], dic[23], dic[25]) < 150:
                 words = '预跳'
-                if cont % 24 == 0:
-                    say.say(words)
-                    say.runAndWait()
+                if count % 24 == 0:
+                    # say.say(words)
+                    # say.runAndWait()
                     print(words)
-                cv2.putText(image, f'Prepare jump', (100, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (19, 0, 200), 3)
+                cv2.putText(image, f'prepare jumping', (100, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (19, 0, 200), 3)
+                # cv2_add_chinese_text(image, "预跳姿势", (100, 60), (19, 0, 200), 1.2)
                 cv2.imwrite(f'{i}.jpg', image)
-                left_hip = cal(dic[11], dic[23], dic[25])
-                left_knee = cal(dic[23], dic[25], dic[27])
-                left_arm = cal(dic[13], dic[11], dic[23])
-                draw2(image, left_arm, 90, 800, 'arm')
+                left_hip = cal_angle(dic[11], dic[23], dic[25])
+                left_knee = cal_angle(dic[23], dic[25], dic[27])
+                left_arm = cal_angle(dic[13], dic[11], dic[23])
+                draw2(image, left_arm, 90, 800, 'arm1')
                 draw2(image, left_hip, 52, 1000, 'hip')
                 draw2(image, left_knee, 55, 1200, 'knee')
                 cv2.imwrite(f'{i}.jpg', image)
-            cont += 1
-            i += 1
+            count += 1
+            i += 1    # 另外一张图片
         except:
             pass
         cv2.imshow('MediaPipe Pose', image)
