@@ -179,7 +179,7 @@ with mp_pose.Pose(
             left_elbow = cal_angle(dic[15], dic[13], dic[11])
             left_arm = angele['left_arm']
             left_arm = cal_angle(dic[13], dic[11], dic[23])
-            # 手臂与手腕髋
+            # 手腕与髋的距离/手臂长（手腕到左肩的距离）
             distance = (
                                ((dic[23][0] - dic[15][0]) ** 2 + (dic[23][1] - dic[15][1]) ** 2) ** 0.5) / (
                                ((dic[15][0] - dic[11][0]) ** 2 + (dic[15][1] - dic[11][1]) ** 2) ** 0.5)
@@ -212,7 +212,11 @@ with mp_pose.Pose(
                 print(words)
                 draw1(image, left_arm, 160)
                 cv2.imwrite(f'{i}.jpg', image)
-            elif pose_leg > 165 and distance > 0.3 and dic[23][0] + 60 < dic[15][0]:
+            """经多次实验后发现前摆动作如果摆幅过大举过头顶后超过髋部一定距离会被误判为后摆，
+            为了解决该问题，在后摆的判定条件上添加了一个条件：
+            当后摆时需要手腕超过髋部的距离大于手臂距离的1/4(这里用比值0.3）时才判定为后摆。加入这个条件后前摆误判的问题得以解决。
+            """
+            elif pose_leg > 165 and distance > 0.3 and dic[23][0] + 60 < dic[15][0]:    
                 words = '后摆'
                 if count % 23 == 0:
                     # say.say(words)
