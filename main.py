@@ -1,10 +1,13 @@
 import math
 import cv2
 import mediapipe as mp
-import pyttsx3
+# import pyttsx3
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import ssl
+
+ssl._create_default_https_context = ssl._create_unverified_context
 
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
@@ -17,7 +20,7 @@ QIANBAI_KNEE = 165  # 前摆，腕肩髋的三点夹角
 
 # For static images
 IMAGE_FILES = []
-say = pyttsx3.init()
+# say = pyttsx3.init()
 count = 1
 """
 todo 补充标记对应关键点表格
@@ -47,7 +50,7 @@ def _normalized_to_pixel_coordinates(
     return x_px, y_px
 
 
-# draw1表示只包含单个变量的动作计算分数并打印
+# draw1表示只包含单个变量的动作计算分数并打印，todo 计算逻辑需要梳理
 def draw1(img, angle, std):
     # print(angle, per)
     per = angle / std
@@ -65,6 +68,12 @@ def draw1(img, angle, std):
     cv2.putText(img, f'{("perfect" if (std - 10 <= angle <= std + 15) else "nope")}', (1000, 75),
                 cv2.FONT_HERSHEY_PLAIN, 2,
                 color, 2)
+
+
+#  画出分数柱状图
+def draw_score(img, angle, std_min, std_max):
+    # todo
+    return img
 
 
 def draw2(img, angle, std, x, name):
@@ -135,7 +144,9 @@ def cv2_add_chinese_text(img, text, position, textColor=(0, 255, 0), textSize=30
 
 with mp_pose.Pose(
         min_detection_confidence=0.5,
-        min_tracking_confidence=0.5) as pose:
+        min_tracking_confidence=0.5,
+        model_complexity=1,
+        enable_segmentation=True) as pose:
     i = 0
     while cap.isOpened():
         success, image = cap.read()
@@ -169,7 +180,7 @@ with mp_pose.Pose(
                 idx_to_coordinates[idx] = landmark_px
         dic = {}
         angele = {}
-        for k in idx_to_coordinates.keys():
+        for k in idx_to_coordinates.keys():  # 取下一个图片
             if k in list(range(11, 17)) or k in list(range(23, 29)):
                 dic[k] = idx_to_coordinates[k]
         try:
@@ -178,19 +189,21 @@ with mp_pose.Pose(
             angele['left_elbow'] = cal_angle(dic[15], dic[13], dic[11])
             left_elbow = cal_angle(dic[15], dic[13], dic[11])
             left_arm = angele['left_arm']
-            left_arm = cal_angle(dic[13], dic[11], dic[23])
-            # 手腕与髋的距离/手臂长（手腕到左肩的距离）
+            # left_arm = cal_angle(dic[13], dic[11], dic[23]) # 没有用，删除
+            # 手臂与手腕髋 todo 不知道什么意思
             distance = (
                                ((dic[23][0] - dic[15][0]) ** 2 + (dic[23][1] - dic[15][1]) ** 2) ** 0.5) / (
                                ((dic[15][0] - dic[11][0]) ** 2 + (dic[15][1] - dic[11][1]) ** 2) ** 0.5)
-            # 髋、踝与手臂
-            distance2 = abs(dic[23][0] - dic[27][0]) / (
-                    ((dic[15][0] - dic[11][0]) ** 2 + (dic[15][1] - dic[11][1]) ** 2) ** 0.5)
+            # 髋、踝的横坐标之差/手臂长度
+            left_arm_length = ((dic[15][0] - dic[11][0]) ** 2 + (dic[15][1] - dic[11][1]) ** 2) ** 0.5
+            # todo 不知道什么意思
+            distance2 = abs(dic[23][0] - dic[27][0]) / left_arm_length
+
             pose_leg = cal_angle(dic[23], dic[25], dic[27])  # 髋、膝、踝的角度，腿的姿态
             print(distance, pose_leg)
 
-            if pose_leg > 165 and distance2 > 0.3:
-                if count % 2 == 0:
+            if pose_leg > 165 and distance2 > 0.3:  # todo 为什么0.3
+                if count % 2 == 0:    # todo 为什么双数帧图片？
                     words = '离 地'
                     # say.say(words)
                     # say.runAndWait()
@@ -212,11 +225,7 @@ with mp_pose.Pose(
                 print(words)
                 draw1(image, left_arm, 160)
                 cv2.imwrite(f'{i}.jpg', image)
-            """经多次实验后发现前摆动作如果摆幅过大举过头顶后超过髋部一定距离会被误判为后摆，
-            为了解决该问题，在后摆的判定条件上添加了一个条件：
-            当后摆时需要手腕超过髋部的距离大于手臂距离的1/4(这里用比值0.3）时才判定为后摆。加入这个条件后前摆误判的问题得以解决。
-            """
-            elif pose_leg > 165 and distance > 0.3 and dic[23][0] + 60 < dic[15][0]:    
+            elif pose_leg > 165 and distance > 0.3 and dic[23][0] + 60 < dic[15][0]:
                 words = '后摆'
                 if count % 23 == 0:
                     # say.say(words)
@@ -248,6 +257,6 @@ with mp_pose.Pose(
             pass
         cv2.imshow('MediaPipe Pose', image)
         i += 1
-        if cv2.waitKey(5) & 0xFF == 27:
+        if cv2.waitKey(5) & 0xFF == 27:  # 显示画面，如果按ESC退出画面
             break
 cap.release()
