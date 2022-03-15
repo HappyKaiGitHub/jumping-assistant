@@ -30,7 +30,7 @@ todo 补充标记对应关键点表格
 """
 
 
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(0)   #0表示第一个摄像头，1表示第二个
 
 
 def _normalized_to_pixel_coordinates(
