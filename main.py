@@ -151,12 +151,12 @@ def cv2_add_chinese_text(img, text, position, textColor=(0, 255, 0), textSize=30
 with mp_pose.Pose(
         min_detection_confidence=0.5,
         min_tracking_confidence=0.5,
-        model_complexity=1,
+        model_complexity=2,     #2代表更heavy模型，性能效果有待观察
         enable_segmentation=True) as pose:
     jumping_no = 1
     while cap.isOpened():
         success, image = cap.read()
-        image = cv2.resize(image, (1280, 720))
+        image = cv2.resize(image, (1280, 720))  #720P
         image_no = 1
         if not success:
             print("Ignoring empty camera frame.")
@@ -182,6 +182,7 @@ with mp_pose.Pose(
                 continue
             landmark_px = _normalized_to_pixel_coordinates(landmark.x, landmark.y,
                                                            image_cols, image_rows)
+            #print(results.pose_world_landmarks.landmark[mp_pose.PoseLandmark.NOSE])
             if landmark_px:
                 idx_to_coordinates[idx] = landmark_px
         dic = {}
